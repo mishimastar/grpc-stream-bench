@@ -10,6 +10,7 @@ import {
 import { WatchInitialTime } from './metrics.js';
 import { CacheTyped } from './cache/cache.js';
 import { Serialize2Protobuf, Serialize2SepProtobuf } from './cache/serializers.js';
+import { Status } from '@grpc/grpc-js/build/src/constants.js';
 
 const server = new Server({
     'grpc.max_concurrent_streams': 1000,
@@ -23,8 +24,20 @@ const server = new Server({
 type HackBuf<T> = {
     write(chunk: T): boolean;
     write(chunk: T | Buffer, encoding: 'buffer'): boolean;
+    call?: { write: (frameBytes: Buffer, payload: Buffer) => void };
 };
 export type HackedWritableBuf<T> = ServerWritableStream<WatchRequest, T> & HackBuf<T>;
+
+export type HackedHttp2ServerCallStream = {
+    checkCancelled(): boolean;
+    maxSendMessageSize: number;
+    sendError(a: any): void;
+    emit(a: any): void;
+    sendMetadata(): void;
+    stream: {
+        _writev(chunks: { chunk: Buffer }[], callback: (e: Error) => void): void;
+    };
+};
 
 (StreamBenchService.watch as any).responseSerialize = (value: WatchResponse) => {
     if (value instanceof Buffer) return value;
@@ -33,6 +46,31 @@ export type HackedWritableBuf<T> = ServerWritableStream<WatchRequest, T> & HackB
 (StreamBenchService.watchSeparated as any).responseSerialize = (value: SeparatedWatchResponse) => {
     if (value instanceof Buffer) return value;
     return Buffer.from(SeparatedWatchResponse.encode(value).finish());
+};
+
+export const getFakeWrite = (): ((frameBytes: Buffer, payload: Buffer) => void) => {
+    // console.log('fake write call', Object.entries(call.stream));
+    return function (this: HackedHttp2ServerCallStream, payload: Buffer, frameBytes: Buffer) {
+        console.log('we are in a fake write!', frameBytes, payload);
+        if (this.checkCancelled()) {
+            return;
+        }
+        if (this.maxSendMessageSize !== -1 && payload.length > this.maxSendMessageSize) {
+            this.sendError({
+                code: Status.RESOURCE_EXHAUSTED,
+                details: `Sent message larger than max (${payload.length} vs. ${this.maxSendMessageSize})`
+            });
+            return;
+        }
+        this.sendMetadata();
+        // console.log('payload in write', payload, 'frameBytes', frameBytes);
+        this.emit('sendMessage');
+        // const callStack = this.getCallStack();
+        // console.log('Call stack2:', callStack);
+        // const wvres = this.stream._writev([{ chunk: frameBytes }, { chunk: payload }], () => {});
+        // console.log('wvres', wvres);
+        return this.stream._writev([{ chunk: frameBytes }, { chunk: payload }], () => {});
+    };
 };
 // HACK END
 
@@ -60,6 +98,7 @@ const watch = async (call: HackedWritableBuf<WatchResponse>) => {
     addHandlers(call);
 
     try {
+        call.call!.write = getFakeWrite();
         const resp = Cache.getResponse(folder);
         call.write(resp, 'buffer');
     } finally {
@@ -92,6 +131,7 @@ const watchSeparated = async (call: HackedWritableBuf<SeparatedWatchResponse>) =
     addHandlers(call);
 
     try {
+        call.call!.write = getFakeWrite();
         const resps = CacheSep.getResponse(folder);
         await separatedWriter(resps, call);
     } finally {
