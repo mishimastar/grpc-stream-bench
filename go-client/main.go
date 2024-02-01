@@ -37,6 +37,8 @@ func main() {
 		sep = false
 	}
 	fmt.Println("total watchers", watchers)
+	fmt.Println("folder", folder)
+	fmt.Println("separated", sep)
 	g, ctx := errgroup.WithContext(context.Background())
 
 	for i := 0; i < watchers; i++ {
