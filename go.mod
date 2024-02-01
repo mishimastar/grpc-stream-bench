@@ -1,4 +1,4 @@
-module gitlab.gibdev.net/sb/config-manager
+module github.com/mishimastar/grpc-stream-bench
 
 go 1.21
 
