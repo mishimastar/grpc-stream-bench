@@ -38,7 +38,7 @@ func (cmClient *sbClient) Watch(ctx context.Context, folder string, id int) erro
 
 	stream, err := cmClient.client.Watch(ctx, rCp)
 	if err != nil {
-		err = errors.Wrap(err, "start watch "+"_"+rCp.Folder)
+		err = errors.Wrap(err, "start watch "+rCp.Folder)
 		return err
 	}
 	defer stream.CloseSend()
@@ -64,7 +64,7 @@ func (cmClient *sbClient) WatchSep(ctx context.Context, folder string, id int) e
 
 	stream, err := cmClient.client.WatchSeparated(ctx, rCp)
 	if err != nil {
-		err = errors.Wrap(err, "start watch "+"_"+rCp.Folder)
+		err = errors.Wrap(err, "start watch "+rCp.Folder)
 		return err
 	}
 	defer stream.CloseSend()
