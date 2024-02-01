@@ -9,7 +9,7 @@ import {
 } from './proto/stream-bench.js';
 import { WatchInitialTime } from './metrics.js';
 import { CacheTyped } from './cache/cache.js';
-import { Serialize2SWR, Serialize2WR } from './cache/serializers.js';
+import { Serialize2gRPCFrame, Serialize2SepgRPCFrame } from './cache/serializers.js';
 
 const server = new Server({
     'grpc.max_concurrent_streams': 1000,
@@ -19,8 +19,23 @@ const server = new Server({
     'grpc.keepalive_time_ms': 10000 // 10 seconds
 });
 
-const Cache = new CacheTyped<WatchResponse>(Serialize2WR);
-const CacheSep = new CacheTyped<SeparatedWatchResponse[]>(Serialize2SWR);
+// HACK START
+type HackBuf<T> = {
+    write(chunk: T): boolean;
+    write(chunk: T | Buffer, encoding: 'buffer'): boolean;
+};
+type HackHttp2Buf<T> = { call?: { serializeMessage: (r: T) => Buffer } };
+export type HackedWritableBuf<T> = ServerWritableStream<WatchRequest, T> & HackBuf<T> & HackHttp2Buf<T>;
+
+const createFakeSerializer = <T>(ctx: HackHttp2Buf<T>): ((r: T | Buffer) => Buffer) => {
+    const orig = ctx.call!.serializeMessage;
+    const binded = orig.bind(ctx.call);
+    return (r) => (r instanceof Buffer ? r : binded(r));
+};
+// HACK END
+
+const Cache = new CacheTyped<Buffer>(Serialize2gRPCFrame);
+const CacheSep = new CacheTyped<Buffer[]>(Serialize2SepgRPCFrame);
 
 const getHandler = (call: ServerWritableStream<unknown, unknown>) => {
     return (arg: unknown) => {
@@ -37,25 +52,24 @@ const addHandlers = (call: ServerWritableStream<unknown, unknown>) => {
     call.on('close', getHandler(call));
 };
 
-const watch = async (call: ServerWritableStream<WatchRequest, WatchResponse>) => {
+const watch = async (call: HackedWritableBuf<WatchResponse>) => {
     const { folder } = call.request;
     const end = WatchInitialTime.startTimer({ folder });
     addHandlers(call);
 
+    call.call!.serializeMessage = createFakeSerializer(call); // HACK
+
     try {
         const resp = Cache.getResponse(folder);
-        call.write(resp);
+        call.write(resp, 'buffer');
     } finally {
         end({ folder });
     }
 };
 
-const separatedWriter = async (
-    msgs: SeparatedWatchResponse[],
-    call: ServerWritableStream<WatchRequest, SeparatedWatchResponse>
-) => {
+const separatedWriter = async (msgs: Buffer[], call: HackedWritableBuf<SeparatedWatchResponse>) => {
     for (const msg of msgs) {
-        if (call.write(msg)) continue;
+        if (call.write(msg, 'buffer')) continue;
         await new Promise<void>((res, rej) => {
             const d = () => {
                 // eslint-disable-next-line @typescript-eslint/no-use-before-define
@@ -72,10 +86,12 @@ const separatedWriter = async (
     }
 };
 
-const watchSeparated = async (call: ServerWritableStream<WatchRequest, SeparatedWatchResponse>) => {
+const watchSeparated = async (call: HackedWritableBuf<SeparatedWatchResponse>) => {
     const { folder } = call.request;
     const end = WatchInitialTime.startTimer({ folder });
     addHandlers(call);
+
+    call.call!.serializeMessage = createFakeSerializer(call); // HACK
 
     try {
         const resps = CacheSep.getResponse(folder);
