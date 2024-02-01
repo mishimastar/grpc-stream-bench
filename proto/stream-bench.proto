@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package stream_bench;
+
+option go_package = "/pkg/stream-bench;stream_bench";
+
+service StreamBench {
+    rpc Watch(WatchRequest) returns (stream WatchResponse);
+    rpc WatchSeparated(WatchRequest) returns (stream SeparatedWatchResponse);
+}
+
+
+message KV {
+    string folder = 1;
+    string key = 2;
+    bytes value = 4;
+}
+
+message WatchRequest {
+    string folder = 1;
+}
+
+message WatchResponse {
+    repeated KV kv = 1;
+}
+
+message SeparatedWatchResponse {
+    uint32 part = 1;
+    uint32 parts = 2;
+    KV kv = 3;
+}
+
+

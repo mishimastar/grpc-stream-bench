@@ -1,0 +1,40 @@
+{
+    "compilerOptions": {
+        "rootDir": "src",
+        "outDir": "built",
+        "composite": true,
+        "target": "ESNext",
+        "module": "CommonJS",
+        "resolveJsonModule": true,
+        "moduleResolution": "Node",
+        "allowJs": false,
+        "checkJs": false,
+        "sourceMap": true,
+        "declaration": true,
+        "declarationMap": true,
+        "allowSyntheticDefaultImports": true,
+
+        "esModuleInterop": true,
+
+        "skipLibCheck": true,
+        "lib": ["ESNext"],
+
+        "strict": true,
+        "alwaysStrict": true,
+        "noImplicitReturns": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noUncheckedIndexedAccess": true,
+        "allowUnreachableCode": false,
+        "noFallthroughCasesInSwitch": true,
+        "forceConsistentCasingInFileNames": true,
+        "importsNotUsedAsValues": "error",
+
+        "emitDecoratorMetadata": true,
+        "experimentalDecorators": true,
+
+        "pretty": true
+    },
+    "include": ["src/**/*"],
+    "exclude": ["built/**/*"]
+}
