@@ -3,6 +3,11 @@ module github.com/mishimastar/grpc-stream-bench
 go 1.21
 
 require (
+	github.com/creasty/defaults v1.7.0
+	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
+	github.com/pkg/errors v0.9.1
+	github.com/sirupsen/logrus v1.9.3
+	golang.org/x/sync v0.5.0
 	google.golang.org/grpc v1.61.0
 	google.golang.org/protobuf v1.32.0
 )
