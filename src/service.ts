@@ -8,7 +8,7 @@ import {
     WatchResponse
 } from './proto/stream-bench.js';
 import { WatchInitialTime } from './metrics.js';
-import { CacheCommon } from './cache/cache.js';
+import { CacheTyped } from './cache/cache.js';
 import { Serialize2SWR, Serialize2WR } from './cache/serializers.js';
 
 const server = new Server({
@@ -19,8 +19,8 @@ const server = new Server({
     'grpc.keepalive_time_ms': 10000 // 10 seconds
 });
 
-const Cache = new CacheCommon<WatchResponse>(Serialize2WR);
-const CacheSep = new CacheCommon<SeparatedWatchResponse[]>(Serialize2SWR);
+const Cache = new CacheTyped<WatchResponse>(Serialize2WR);
+const CacheSep = new CacheTyped<SeparatedWatchResponse[]>(Serialize2SWR);
 
 const getHandler = (call: ServerWritableStream<unknown, unknown>) => {
     return (arg: unknown) => {

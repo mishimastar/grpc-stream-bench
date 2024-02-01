@@ -21,7 +21,7 @@ const cacheCondition: InitialCondition = {
     small: [1000, 500] // 1000 docs by 5B, total ~500KB
 };
 
-export class CacheCommon<T> implements Cache<T> {
+export class CacheTyped<T> implements Cache<T> {
     #cache: CacheMap<T> = new Map();
     #serializer: (wr: WatchResponse) => T;
     #emptyInit: T;
