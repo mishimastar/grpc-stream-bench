@@ -39,7 +39,8 @@ func main() {
 	fmt.Println("total watchers", watchers)
 	fmt.Println("folder", folder)
 	fmt.Println("separated", sep)
-	g, ctx := errgroup.WithContext(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
 
 	for i := 0; i < watchers; i++ {
 		id := i
@@ -52,10 +53,10 @@ func main() {
 
 	select {
 	case <-term:
+		cancel()
 	case <-ctx.Done():
 	}
 	e := g.Wait()
-	// fmt.Println(ctx.Err().Error())
 
 	if e != nil {
 		logrus.Infoln(fmt.Sprintf("error from goroutine: %v\n", e))
