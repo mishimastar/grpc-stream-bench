@@ -20,8 +20,8 @@ type GRPCConfig struct {
 	MinConnectionTimeout time.Duration `default:"5s"`
 	MaxRetries           uint          `default:"3"`
 
-	// ConfigManagerCommonEndpoint string `default:"localhost:8080"`
-	ConfigManagerCommonEndpoint string `default:"grpc-stream-bench.sb-micro:8080"`
+	StreamBenchCommonEndpoint string `default:"localhost:8080"`
+	// StreamBenchCommonEndpoint string `default:"grpc-stream-bench.sb-micro:8080"`
 }
 
 func GetGRPCConfig() (GRPCConfig, error) {

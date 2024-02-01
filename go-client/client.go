@@ -21,7 +21,7 @@ type SBClient interface {
 
 func NewSBClient(grpcCfg GRPCConfig) (SBClient, error) {
 	opts := grpcCfg.DialOptions()
-	cc, err := grpc.Dial(grpcCfg.ConfigManagerCommonEndpoint, opts...)
+	cc, err := grpc.Dial(grpcCfg.StreamBenchCommonEndpoint, opts...)
 	if err != nil {
 		return nil, err
 	}
