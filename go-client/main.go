@@ -32,16 +32,16 @@ func main() {
 	if folder == "" {
 		folder = "small"
 	}
-	separated, err := strconv.ParseBool(os.Getenv("SEPARATED"))
+	sep, err := strconv.ParseBool(os.Getenv("SEPARATED"))
 	if err != nil {
-		separated = false
+		sep = false
 	}
 	fmt.Println("total watchers", watchers)
 	g, ctx := errgroup.WithContext(context.Background())
 
 	for i := 0; i < watchers; i++ {
 		id := i
-		if separated {
+		if sep {
 			g.Go(func() error { return cmClient.WatchSep(ctx, folder, id) })
 		} else {
 			g.Go(func() error { return cmClient.Watch(ctx, folder, id) })
