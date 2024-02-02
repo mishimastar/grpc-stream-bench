@@ -24,19 +24,17 @@ const server = new Server({
 type HackBuf<T> = {
     write(chunk: T): boolean;
     write(chunk: T | Buffer, encoding: 'buffer'): boolean;
-    call?: { write: (frameBytes: Buffer, payload: Buffer) => void };
+    call?: { write: (frame: { meta: Buffer; payload: Buffer }) => void; serializeMessage: (r: T) => any };
 };
 export type HackedWritableBuf<T> = ServerWritableStream<WatchRequest, T> & HackBuf<T>;
-
 export type HackedHttp2ServerCallStream = {
     checkCancelled(): boolean;
     maxSendMessageSize: number;
     sendError(a: any): void;
     emit(a: any): void;
     sendMetadata(): void;
-    stream: {
-        _writev(chunks: { chunk: Buffer }[], callback: (e: Error) => void): void;
-    };
+    stream: { write(chunk: Buffer): boolean };
+    handler: { serialize(a: any): Buffer };
 };
 
 (StreamBenchService.watch as any).responseSerialize = (value: WatchResponse) => {
@@ -48,28 +46,36 @@ export type HackedHttp2ServerCallStream = {
     return Buffer.from(SeparatedWatchResponse.encode(value).finish());
 };
 
-export const getFakeWrite = (): ((frameBytes: Buffer, payload: Buffer) => void) => {
-    // console.log('fake write call', Object.entries(call.stream));
-    return function (this: HackedHttp2ServerCallStream, payload: Buffer, frameBytes: Buffer) {
-        console.log('we are in a fake write!', frameBytes, payload);
+export const getFakeWrite = (): ((frame: { meta: Buffer; payload: Buffer }) => void) => {
+    return function (this: HackedHttp2ServerCallStream, frame: { meta: Buffer; payload: Buffer }) {
         if (this.checkCancelled()) {
             return;
         }
-        if (this.maxSendMessageSize !== -1 && payload.length > this.maxSendMessageSize) {
+        if (this.maxSendMessageSize !== -1 && frame.payload.length > this.maxSendMessageSize) {
             this.sendError({
                 code: Status.RESOURCE_EXHAUSTED,
-                details: `Sent message larger than max (${payload.length} vs. ${this.maxSendMessageSize})`
+                details: `Sent message larger than max (${frame.payload.length} vs. ${this.maxSendMessageSize})`
             });
             return;
         }
         this.sendMetadata();
-        // console.log('payload in write', payload, 'frameBytes', frameBytes);
         this.emit('sendMessage');
-        // const callStack = this.getCallStack();
-        // console.log('Call stack2:', callStack);
-        // const wvres = this.stream._writev([{ chunk: frameBytes }, { chunk: payload }], () => {});
-        // console.log('wvres', wvres);
-        return this.stream._writev([{ chunk: frameBytes }, { chunk: payload }], () => {});
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        const d1 = this.stream.write(frame.meta);
+        // ignoring highWaterMark and drain event because for library user there must be only one write
+        const d2 = this.stream.write(frame.payload);
+        return d1 && d2;
+    };
+};
+
+const createFakeSerializer = <T>(): ((r: T | Buffer) => { meta: Buffer; payload: Buffer }) => {
+    return function (this: HackedHttp2ServerCallStream, r) {
+        const messageBuffer = this.handler.serialize(r);
+        const { byteLength } = messageBuffer;
+        const output = Buffer.allocUnsafe(5);
+        output.writeUInt8(0, 0);
+        output.writeUInt32BE(byteLength, 1);
+        return { meta: output, payload: messageBuffer };
     };
 };
 // HACK END
@@ -98,6 +104,7 @@ const watch = async (call: HackedWritableBuf<WatchResponse>) => {
     addHandlers(call);
 
     try {
+        call.call!.serializeMessage = createFakeSerializer();
         call.call!.write = getFakeWrite();
         const resp = Cache.getResponse(folder);
         call.write(resp, 'buffer');
@@ -131,6 +138,7 @@ const watchSeparated = async (call: HackedWritableBuf<SeparatedWatchResponse>) =
     addHandlers(call);
 
     try {
+        call.call!.serializeMessage = createFakeSerializer();
         call.call!.write = getFakeWrite();
         const resps = CacheSep.getResponse(folder);
         await separatedWriter(resps, call);
